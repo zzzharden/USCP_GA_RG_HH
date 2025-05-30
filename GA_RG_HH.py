@@ -137,12 +137,22 @@ def selection(population, fitness, tournament_size=5):
         selected_individuals.append(copy.deepcopy(population[min_fitness_index]))
     return selected_individuals[0], selected_individuals[1]
 
-# 单点交叉策略函数，具体实现需根据问题定义
-def one_point_crossover(parent1, parent2):
-    # 随机选择一个交叉点
-    crossover_point = random.randint(1, len(parent1) - 1)
-    # 生成子代个体，交叉点之前的部分来自 parent1，之后的部分来自 parent2
-    child = parent1[:crossover_point] + parent2[crossover_point:]
+def two_point_crossover(parent1, parent2):
+    """
+    两点交叉策略函数
+    :param parent1: 父代个体1
+    :param parent2: 父代个体2
+    :return: 生成的子代个体
+    """
+    # 确保染色体长度至少为2，以便进行两点交叉
+    if len(parent1) < 2 or len(parent2) < 2:
+        raise ValueError("染色体长度必须至少为2才能进行两点交叉")
+
+    # 随机选择两个不同的交叉点
+    point1, point2 = sorted(random.sample(range(1, len(parent1)), 2))
+
+    # 生成子代个体，两点之间的部分来自parent2，其余部分来自parent1
+    child = parent1[:point1] + parent2[point1:point2] + parent1[point2:]
     return child
 
 
@@ -948,12 +958,10 @@ def GA_RG_HH(paths, max_iterations=10, population_size=20, crossover_rate=0.8, m
             lva = copy.deepcopy(solution_a[0])  #这里假设低层次启发式向量就是解本身，需根据实际调整
             lva1=copy.deepcopy(solution_b[0])
 
-
-            # 交叉操作
             if(len(lva)!=1 and len(lva1)!=1):
-
-                if random.random() < crossover_rate:
-                    lva = one_point_crossover(lva, lva1)
+                # 交叉操作
+                if random.random() < crossover_rate and (len(lva)>1 and len(lva1)>1):
+                    lva = two_point_crossover(lva, lva1)
                 # 变异操作
                 if random.random() < mutation_rate:
                     lva = one_point_mutation(lva)
