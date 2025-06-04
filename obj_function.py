@@ -157,6 +157,12 @@ def course_perday(schedule):
                         class_course_days[class_id][day].add((course_info['course'], course_info['time']))
     return p6,num
 
+def cr_num(schedule):
+    p7=0
+    for index in range(0,len(schedule)):
+        if any(schedule[index]):
+            p7=p7+1
+    return p7
 
 def obj_func_all(schedule,path,classrooms,tr):
     courses_task, teachers, classes, courses = data1(path)
@@ -167,9 +173,11 @@ def obj_func_all(schedule,path,classrooms,tr):
     p4 = teacher_like(schedule,teachers)  # 软约束4：教师教学尽量安排在其偏好时间
     p5 = course_like(schedule,courses)  # 软约束5：课程尽量安排在其合适时间
     p6,num = course_perday(schedule)   #软约束6：相同课程一天不能安排超过一个时间段
-    n1,n2,n3,n4,n5,n6=1,1000,1,1,1,1#量级平衡系数,n7,n8,10,1
-    w1,w2,w3,w4,w5,w6=3,3,1,1,1,3#权重分配,w7,w8,3,3
-    value=w1*n1*p1 + w2*n2*p2 - w3*n3*p3 - w4*n4*p4 - w5*n5*p5 + w6*n6*p6
+    p7 = cr_num(schedule)
+
+    n1,n2,n3,n4,n5,n6,n7=1,1000,1,1,1,1,10#量级平衡系数,n7,n8,10,1
+    w1,w2,w3,w4,w5,w6,w7=3,3,1,1,1,3,5#权重分配,w7,w8,3,3
+    value = w1 * n1 * p1 + w2 * n2 * p2 - w3 * n3 * p3 - w4 * n4 * p4 - w5 * n5 * p5 + w6 * n6 * p6+ w7* n7 * p7
     value = round(value, 2)
 
     return value
@@ -184,7 +192,9 @@ def obj_func_detail(schedule,path,classrooms,tr):
     p4 = teacher_like(schedule,teachers)  # 软约束4：教师教学尽量安排在其偏好时间
     p5 = course_like(schedule,courses)  # 软约束5：课程尽量安排在其合适时间
     p6,num = course_perday(schedule)   #软约束6：相同课程一天不能安排超过一个时间段
-    return [p1,round(p2, 4),p3,p4,p5,p6]
+    p7=cr_num(schedule)
+
+    return [p1,round(p2, 4),p3,p4,p5,p6,p7]
 
 def obj_func_all_print(schedule,path,classrooms,tr):
     courses_task, teachers, classes, courses = data1(path)
@@ -195,10 +205,11 @@ def obj_func_all_print(schedule,path,classrooms,tr):
     p4 = teacher_like(schedule,teachers)  # 软约束4：教师教学尽量安排在其偏好时间
     p5 = course_like(schedule,courses)  # 软约束5：课程尽量安排在其合适时间
     p6,num = course_perday(schedule)   #软约束6：相同课程一天不能安排超过一个时间段
+    p7 = cr_num(schedule)
 
-    n1,n2,n3,n4,n5,n6=1,1000,1,1,1,1#量级平衡系数,n7,n8,10,1
-    w1,w2,w3,w4,w5,w6=3,3,1,1,1,3#权重分配,w7,w8,3,3
-    value = w1 * n1 * p1 + w2 * n2 * p2 - w3 * n3 * p3 - w4 * n4 * p4 - w5 * n5 * p5 + w6 * n6 * p6
+    n1,n2,n3,n4,n5,n6,n7=1,1000,1,1,1,1,10#量级平衡系数,n7,n8,10,1
+    w1,w2,w3,w4,w5,w6,w7=3,3,1,1,1,3,5#权重分配,w7,w8,3,3
+    value = w1 * n1 * p1 + w2 * n2 * p2 - w3 * n3 * p3 - w4 * n4 * p4 - w5 * n5 * p5 + w6 * n6 * p6+ w7* n7 * p7
     value = round(value, 2)
     print("夜晚安排总课时数:", p1,",",p1*3)
     print(f"所有班级的课程分布均匀性:{p2:.4f}, p2={p2*3000:.4f}")
@@ -206,7 +217,8 @@ def obj_func_all_print(schedule,path,classrooms,tr):
     print('符合教师时间偏好净总课时数(符合数量-不符合数量):',p4,",", p4*1)
     print('符合课程适合时间净总课时数(符合数量-不符合数量):',p5,",", p5*1)
     print("班级每天过度安排某门课的总课时数： ",p6,",num:",num,",",p6*3)
-    print('p1 + p2 - p3 - p4 - p5 + p6:', value)
+    print("使用教室数量：",p7,",",p7*50)
+    print('p1 + p2 - p3 - p4 - p5 + p6 + p7:', value)
     return value
 
 def obj_func_time(schedule,path,classrooms,tr):
@@ -244,10 +256,16 @@ def obj_func_time(schedule,path,classrooms,tr):
     end = time.time()
     res_time.append(end - start)
 
+    start = time.time()
+    p7= cr_num(schedule)   #软约束6：相同课程一天不能安排超过一个时间段
+    end = time.time()
+    res_time.append(end - start)
+
     print(res_time)
-    n1,n2,n3,n4,n5,n6=1,1000,1,1,1,1#量级平衡系数,n7,n8,10,1
-    w1,w2,w3,w4,w5,w6=3,3,1,1,1,3#权重分配,w7,w8,3,3
-    value=w1*n1*p1 + w2*n2*p2 - w3*n3*p3 - w4*n4*p4 - w5*n5*p5 + w6*n6*p6
+
+    n1,n2,n3,n4,n5,n6,n7=1,1000,1,1,1,1,10#量级平衡系数,n7,n8,10,1
+    w1,w2,w3,w4,w5,w6,w7=3,3,1,1,1,3,5#权重分配,w7,w8,3,3
+    value = w1 * n1 * p1 + w2 * n2 * p2 - w3 * n3 * p3 - w4 * n4 * p4 - w5 * n5 * p5 + w6 * n6 * p6+ w7* n7 * p7
     value = round(value, 2)
     return value
 

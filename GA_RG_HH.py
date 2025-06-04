@@ -1,9 +1,11 @@
 import copy
+import math
 import random
 import time
 from collections import defaultdict
 
 import numpy as np
+
 from plot import plot_schedule, plot_teacher_schedule, plot_class_schedule, plot_class_heatmap, plot_schedule1
 import random
 from data_loader import data,data1,data2
@@ -16,6 +18,7 @@ timeslots_per_day = 5
 total_timeslots = days_per_week * timeslots_per_day
 classrooms = data2(r'data\classrooms.xlsx')
 
+#贪婪策略生成初始解
 def schedule_courses(courses_task, classes, teachers, schedule_all,col):
     # 初始化排课表
     schedule = np.full((len(classrooms), total_timeslots), None)
@@ -103,12 +106,11 @@ def schedule_courses(courses_task, classes, teachers, schedule_all,col):
         else:
             return schedule, class_schedule, teacher_schedule
 
-
-# 生成初始解的函数，具体实现需根据问题定义
+# 生成初始解的函数
 def generate_initial_solution(paths):
     # 这里只是示例，需要根据实际问题调整
     pop = []
-    pop.append([random.randint(0, 8) for _ in range(5)])
+    pop.append([random.randint(0, 9) for _ in range(10)])
     schedule_all = np.full((len(classrooms), total_timeslots), None)
     for i, path in enumerate(paths):
         college_name = f'学院{i + 1}'
@@ -117,6 +119,7 @@ def generate_initial_solution(paths):
         pop.append([res, cr, tr, teachers, courses, schedule_all])
     return pop
 
+#锦标赛选择
 def selection(population, fitness, tournament_size=5):
     """
     锦标赛选择函数，适应度值越小被选中的概率越高
@@ -137,6 +140,7 @@ def selection(population, fitness, tournament_size=5):
         selected_individuals.append(copy.deepcopy(population[min_fitness_index]))
     return selected_individuals[0], selected_individuals[1]
 
+#两点交叉策略
 def two_point_crossover(parent1, parent2):
     """
     两点交叉策略函数
@@ -155,13 +159,12 @@ def two_point_crossover(parent1, parent2):
     child = parent1[:point1] + parent2[point1:point2] + parent1[point2:]
     return child
 
-
-# 单点变异策略函数，具体实现需根据问题定义
+# 单点变异策略函数
 def one_point_mutation(solution):
     # 这里只是示例，需要根据实际问题调整
     mutation_point = random.randint(0, len(solution) - 1)
     new_solution = solution.copy()
-    new_solution[mutation_point] = random.randint(0, 8)
+    new_solution[mutation_point] = random.randint(0, 9)
     return new_solution
 
 
@@ -189,6 +192,8 @@ def update_sva(lva, sol):
                 s = B_c_teacher(v[0], v[1], v[2],v[3],v[5])
             elif i==8:
                 s = B_method(v[0], v[1], v[2],v[3],v[5])
+            elif i==9:
+                pass
 
             s.append(v[3])
             s.append(v[4])
@@ -405,7 +410,7 @@ def A_swap_classroom_type_timeslots(schedule, class_schedule, teacher_schedule, 
     # 确保有可用的教室类型
     if not classroom_types:
         print("警告: 没有找到可用的教室类型")
-        return schedule, class_schedule, teacher_schedule, schedule_all, (None, None), None
+        return [schedule, class_schedule, teacher_schedule]
 
     # 随机选择一种教室类型
     selected_type = random.choice(classroom_types)
@@ -416,118 +421,97 @@ def A_swap_classroom_type_timeslots(schedule, class_schedule, teacher_schedule, 
     # 确保该类型有教室
     if not type_indices:
         print(f"警告: 教室类型 {selected_type} 没有对应的教室")
-        return schedule, class_schedule, teacher_schedule, schedule_all, (None, None), None
+        return [schedule, class_schedule, teacher_schedule]
 
     # 随机选择两个不同的时间段
     timeslot1, timeslot2 = random.sample(range(total_timeslots), 2)
 
-    # 1. 更新班级和教师时间表
-    # 收集所有课程涉及的班级和教师
-    classes_involved = set()
-    teachers_involved = set()
+    for used_cr in type_indices:
+        if schedule[used_cr][timeslot1]:
+            if check(used_cr, timeslot2, used_cr, timeslot1, schedule, class_schedule, teacher_schedule):
+                schedule[used_cr][timeslot1], schedule[used_cr][timeslot2] = schedule[used_cr][timeslot2], schedule[used_cr][timeslot1]
+                schedule_all[used_cr][timeslot1], schedule_all[used_cr][timeslot2] = schedule_all[used_cr][timeslot2], schedule_all[used_cr][timeslot1]
+        elif schedule[used_cr][timeslot2]:
+            if check(used_cr, timeslot1, used_cr, timeslot2, schedule, class_schedule, teacher_schedule):
+                schedule[used_cr][timeslot1], schedule[used_cr][timeslot2] = schedule[used_cr][timeslot2], schedule[used_cr][timeslot1]
+                schedule_all[used_cr][timeslot1], schedule_all[used_cr][timeslot2] = schedule_all[used_cr][timeslot2], schedule_all[used_cr][timeslot1]
 
-    # 遍历该类型的所有教室
-    for classroom_idx in type_indices:
-        # 处理时间段1的课程
-        course1 = schedule[classroom_idx][timeslot1]
-        if course1:
-            classes_involved.update(course1['class'])
-            teachers_involved.add(course1['teacher'])
-
-        # 处理时间段2的课程
-        course2 = schedule[classroom_idx][timeslot2]
-        if course2:
-            classes_involved.update(course2['class'])
-            teachers_involved.add(course2['teacher'])
-
-    # 更新班级时间表：交换两个时间段的记录
-    for class_id in classes_involved:
-        slots = class_schedule[class_id]
-        has_slot1 = timeslot1 in slots
-        has_slot2 = timeslot2 in slots
-
-        if has_slot1 and not has_slot2:
-            slots.remove(timeslot1)
-            slots.add(timeslot2)
-        elif has_slot2 and not has_slot1:
-            slots.remove(timeslot2)
-            slots.add(timeslot1)
-        elif has_slot1 and has_slot2:
-            pass  # 两个时间段都有课，无需修改
-        else:
-            pass  # 两个时间段都没课，无需修改
-
-    # 更新教师时间表：交换两个时间段的记录
-    for teacher_id in teachers_involved:
-        slots = teacher_schedule[teacher_id]
-        has_slot1 = timeslot1 in slots
-        has_slot2 = timeslot2 in slots
-
-        if has_slot1 and not has_slot2:
-            slots.remove(timeslot1)
-            slots.add(timeslot2)
-        elif has_slot2 and not has_slot1:
-            slots.remove(timeslot2)
-            slots.add(timeslot1)
-        elif has_slot1 and has_slot2:
-            pass  # 两个时间段都有课，无需修改
-        else:
-            pass  # 两个时间段都没课，无需修改
-
-    # 2. 交换排课表中该类型教室的两个时间段
-    for classroom_idx in type_indices:
-        schedule[classroom_idx][timeslot1], schedule[classroom_idx][timeslot2] = \
-            schedule[classroom_idx][timeslot2], schedule[classroom_idx][timeslot1]
-
-    # 3. 更新schedule_all中的对应记录
-    # 建立教室ID到schedule_all索引的映射
-    classroom_id_to_index = {classroom['id']: idx for idx, classroom in enumerate(classrooms)}
-
-    # 对该类型的每个教室处理交换
-    for classroom_idx in type_indices:
-        classroom_id = classrooms[classroom_idx]['id']
-        if classroom_id in classroom_id_to_index:
-            schedule_all_idx = classroom_id_to_index[classroom_id]
-            # 交换schedule_all中的对应时间段
-            schedule_all[schedule_all_idx][timeslot1], schedule_all[schedule_all_idx][timeslot2] = \
-                schedule_all[schedule_all_idx][timeslot2], schedule_all[schedule_all_idx][timeslot1]
+    # # 1. 更新班级和教师时间表
+    # # 收集所有课程涉及的班级和教师
+    # classes_involved = set()
+    # teachers_involved = set()
+    #
+    # # 遍历该类型的所有教室
+    # for classroom_idx in type_indices:
+    #     # 处理时间段1的课程
+    #     course1 = schedule[classroom_idx][timeslot1]
+    #     if course1:
+    #         classes_involved.update(course1['class'])
+    #         teachers_involved.add(course1['teacher'])
+    #
+    #     # 处理时间段2的课程
+    #     course2 = schedule[classroom_idx][timeslot2]
+    #     if course2:
+    #         classes_involved.update(course2['class'])
+    #         teachers_involved.add(course2['teacher'])
+    #
+    # # 更新班级时间表：交换两个时间段的记录
+    # for class_id in classes_involved:
+    #     slots = class_schedule[class_id]
+    #     has_slot1 = timeslot1 in slots
+    #     has_slot2 = timeslot2 in slots
+    #
+    #     if has_slot1 and not has_slot2:
+    #         slots.remove(timeslot1)
+    #         slots.add(timeslot2)
+    #     elif has_slot2 and not has_slot1:
+    #         slots.remove(timeslot2)
+    #         slots.add(timeslot1)
+    #     elif has_slot1 and has_slot2:
+    #         pass  # 两个时间段都有课，无需修改
+    #     else:
+    #         pass  # 两个时间段都没课，无需修改
+    #
+    # # 更新教师时间表：交换两个时间段的记录
+    # for teacher_id in teachers_involved:
+    #     slots = teacher_schedule[teacher_id]
+    #     has_slot1 = timeslot1 in slots
+    #     has_slot2 = timeslot2 in slots
+    #
+    #     if has_slot1 and not has_slot2:
+    #         slots.remove(timeslot1)
+    #         slots.add(timeslot2)
+    #     elif has_slot2 and not has_slot1:
+    #         slots.remove(timeslot2)
+    #         slots.add(timeslot1)
+    #     elif has_slot1 and has_slot2:
+    #         pass  # 两个时间段都有课，无需修改
+    #     else:
+    #         pass  # 两个时间段都没课，无需修改
+    #
+    # # 2. 交换排课表中该类型教室的两个时间段
+    # for classroom_idx in type_indices:
+    #     schedule[classroom_idx][timeslot1], schedule[classroom_idx][timeslot2] = \
+    #         schedule[classroom_idx][timeslot2], schedule[classroom_idx][timeslot1]
+    #
+    # # 3. 更新schedule_all中的对应记录
+    # # 建立教室ID到schedule_all索引的映射
+    # classroom_id_to_index = {classroom['id']: idx for idx, classroom in enumerate(classrooms)}
+    #
+    # # 对该类型的每个教室处理交换
+    # for classroom_idx in type_indices:
+    #     classroom_id = classrooms[classroom_idx]['id']
+    #     if classroom_id in classroom_id_to_index:
+    #         schedule_all_idx = classroom_id_to_index[classroom_id]
+    #         # 交换schedule_all中的对应时间段
+    #         schedule_all[schedule_all_idx][timeslot1], schedule_all[schedule_all_idx][timeslot2] = \
+    #             schedule_all[schedule_all_idx][timeslot2], schedule_all[schedule_all_idx][timeslot1]
 
     return [schedule, class_schedule, teacher_schedule]
 
-def A_random(res, cr, tr,schedule_all):
-    for x in range(1):
-        used_classroom_indices = []
-        for classroom_index in range(len(res)):
-            if any(res[classroom_index]):
-                used_classroom_indices.append(classroom_index)
+#约束检查
+def check(r1, p1, r2, p2, res,cr,tr):
 
-        while True:
-            p1 = random.randint(0, 24)
-            M = random.choice(used_classroom_indices)
-            if res[M][p1]:
-                break
-
-        used_classroom_indices1 = []
-        for classroom_index in used_classroom_indices:
-            if classrooms[classroom_index]['type'] in res[M][p1]['allowed_classrooms']:
-                used_classroom_indices1.append(classroom_index)
-        n = 0
-        while n < 100: #检查的最大次数
-            n = n + 1
-            # 从列表中随机选择一个整数
-            p = random.randint(0, 24)
-            r = random.choice(used_classroom_indices1)
-            if (res[r][p] and (res[r][p]['course'] != res[M][p1]['course'] and classrooms[M]['type'] in res[r][p][
-                'allowed_classrooms'])) or schedule_all[r][p] is None:
-                if check(r, p, M, p1, res, cr, tr):
-                    res[r][p], res[M][p1] = res[M][p1], res[r][p]
-                    schedule_all[r][p], schedule_all[M][p1] = schedule_all[M][p1], schedule_all[r][p]
-                    break
-    return [res, cr, tr]
-
-
-
-def check(r1, p1, r2, p2, res, cr, tr):
     if p1 in tr[res[r2][p2]['teacher']]:
         # print("教师时间冲突2")
         return False
@@ -565,44 +549,94 @@ def check(r1, p1, r2, p2, res, cr, tr):
                 cr[class_id].remove(p1)
                 cr[class_id].add(p2)
 
-    return cr, tr
+    return cr,tr
+
+def A_random(res,cr,tr,schedule_all):
+    for x in range(1):
+        count_dict = {}
+        for index, r in enumerate(res):
+            num = sum(1 for t in r if t)
+            if num > 0:
+                count_dict[index] = num
+
+        # 根据使用次数排序，选择最少的5个
+        sorted_items = sorted(count_dict.items(), key=lambda x: x[1])
+        used_classroom_indices = [item[0] for item in sorted_items[:5]]
+
+        r1=random.choice(used_classroom_indices)
+        T1=[]
+        for j in range(0,25):
+            if res[r1][j]:
+                T1.append(j)
+        t1=random.choice(T1)
+
+        used_classroom_indices1 = []
+        for classroom_index in count_dict:
+            if classrooms[classroom_index]['type'] in res[r1][t1]['allowed_classrooms']:
+                used_classroom_indices1.append(classroom_index)
+
+        T2=[j for j in range(25)]
+        sign=False
+        while len(T2)>0:
+            t2=random.choice(T2)
+            R2=copy.deepcopy(used_classroom_indices1)
+            while len(R2)>0:
+                r2=random.choice(R2)
+                if (res[r2][t2] and (res[r2][t2]['course'] != res[r1][t1]['course'] and classrooms[r1]['type'] in res[r2][t2][
+                'allowed_classrooms'])) or schedule_all[r2][t2] is None:
+                    if check(r2, t2, r1, t1, res, cr, tr):
+                        res[r1][t1], res[r2][t2] = res[r2][t2], res[r1][t1]
+                        schedule_all[r1][t1], schedule_all[r2][t2] = schedule_all[r2][t2], schedule_all[r1][t1]
+                        sign = True
+                        break
+                R2.remove(r2)
+            if sign:
+                break
+            T2.remove(t2)
+    return [res,cr,tr]
 
 
 def B_night(res, cr, tr,schedule_all):
     for x in range(5):
-        p1 = random.choice([4, 9, 14, 19, 24])
-        M = 0
+        t1 = random.choice([4, 9, 14, 19, 24])
+        r1=0
         V = 0
         for i in range(len(classrooms)):
-            if res[i][p1] is not None and res[i][p1]['time'] * len(res[i][p1]['class']) > V:
-                M = i
-                V = res[i][p1]['time'] * len(res[i][p1]['class'])
-        if res[M][p1] is None:
+            if res[i][t1] is not None and res[i][t1]['time'] * len(res[i][t1]['class']) > V:
+                r1 = i
+                V = res[i][t1]['time'] * len(res[i][t1]['class'])
+        if res[r1][t1] is None:
             continue
 
-        nums = [i for i in range(25) if i not in [4, 9, 14, 19, 24]]
         used_classroom_indices = []
         for classroom_index in range(len(res)):
-            if any(res[classroom_index]) and classrooms[classroom_index]['type'] in res[M][p1]['allowed_classrooms']:
+            if any(res[classroom_index]) and classrooms[classroom_index]['type'] in res[r1][t1]['allowed_classrooms']:
                 used_classroom_indices.append(classroom_index)
-        sign = True
-        n = 0
-        while sign and n < 100:
-            n = n + 1
-            # 从列表中随机选择一个整数
-            p = random.choice(nums)
-            r = random.choice(used_classroom_indices)
 
-            if (res[r][p] and res[r][p]['time'] * len(res[r][p]['class']) < V) or schedule_all[r][p] is None:
-                if check(r, p, M, p1, res, cr, tr):
-                    res[r][p], res[M][p1] = res[M][p1], res[r][p]
-                    schedule_all[r][p], schedule_all[M][p1] = schedule_all[M][p1], schedule_all[r][p]
-                    break
+        T2=[i for i in range(25) if i not in [4, 9, 14, 19, 24]]
+
+        sign=False
+        while len(T2)>0:
+            t2=random.choice(T2)
+            R2=copy.deepcopy(used_classroom_indices)
+            while len(R2)>0:
+                r2=random.choice(R2)
+                if (res[r2][t2] and res[r2][t2]['time'] * len(res[r2][t2]['class']) < V) or schedule_all[r2][t2] is None:
+                    if check(r2, t2, r1, t1, res, cr, tr):
+                        res[r1][t1], res[r2][t2] = res[r2][t2], res[r1][t1]
+                        schedule_all[r1][t1], schedule_all[r2][t2] = schedule_all[r2][t2], schedule_all[r1][t1]
+                        sign = True
+                        break
+                R2.remove(r2)
+            if sign:
+                break
+            T2.remove(t2)
+
     return [res, cr, tr]
 
 
 def B_course(res, cr, tr,schedule_all):
-    for x in range(2):
+    for x in range(5):
         class_course_days = defaultdict(lambda: defaultdict(set))
         re_list = []
         for ord, classroom in enumerate(res):
@@ -621,29 +655,37 @@ def B_course(res, cr, tr,schedule_all):
             return [res,cr,tr]
 
         first = random.choice(re_list)
-        M, p1 = first[0], first[1]
+        r1, t1 = first[0], first[1]
         used_classroom_indices = []
         for classroom_index in range(len(res)):
-            if any(res[classroom_index]) and classrooms[classroom_index]['type'] in res[M][p1]['allowed_classrooms']:
+            if any(res[classroom_index]) and classrooms[classroom_index]['type'] in res[r1][t1]['allowed_classrooms']:
                 used_classroom_indices.append(classroom_index)
-        n = 0
-        while n < 100:
-            n = n + 1
-            # 从列表中随机选择一个整数
-            p = random.randint(0, 24)
-            r = random.choice(used_classroom_indices)
-            if (res[r][p] and (res[r][p]['course'] != res[M][p1]['course'] and classrooms[M]['type'] in res[r][p][
-                'allowed_classrooms'])) or schedule_all[r][p] is None:
-                if check(r, p, M, p1, res, cr, tr):
-                    res[r][p], res[M][p1] = res[M][p1], res[r][p]
-                    schedule_all[r][p], schedule_all[M][p1] = schedule_all[M][p1], schedule_all[r][p]
-                    break
+
+        T2 = [j for j in range(25)]
+        sign = False
+        while len(T2) > 0:
+            t2 = random.choice(T2)
+            R2=copy.deepcopy(used_classroom_indices)
+            while len(R2) > 0:
+                r2 = random.choice(R2)
+                if (res[r2][t2] and (
+                        res[r2][t2]['course'] != res[r1][t1]['course'] and classrooms[r1]['type'] in res[r2][t2][
+                    'allowed_classrooms'])) or schedule_all[r2][t2] is None:
+                    if check(r2, t2, r1, t1, res, cr, tr):
+                        res[r1][t1],res[r2][t2]=res[r2][t2],res[r1][t1]
+                        schedule_all[r1][t1], schedule_all[r2][t2] = schedule_all[r2][t2], schedule_all[r1][t1]
+                        sign=True
+                        break
+                R2.remove(r2)
+            if sign:
+                break
+            T2.remove(t2)
     return [res, cr, tr]
 
 
 def B_c_course(res, cr, tr,courses,schedule_all):
 
-    for x in range(10):
+    for x in range(1):
         while True:
             used_classroom_indices=[]
             used_indices=[]
@@ -654,20 +696,20 @@ def B_c_course(res, cr, tr,courses,schedule_all):
                         used_classroom_indices.append(i)
 
             u = random.choice(used_indices)
-            M,p1=u[0],u[1]
+            r1,t1=u[0],u[1]
             used_classroom_indices1 = []
             for classroom_index in used_classroom_indices:
-                if classrooms[classroom_index]['type'] in res[M][p1]['allowed_classrooms']:
+                if classrooms[classroom_index]['type'] in res[r1][t1]['allowed_classrooms']:
                     used_classroom_indices1.append(classroom_index)
 
             like_time = []
             for course in courses:
-                if res[M][p1]['course'] == course['name']:
-                    if course['like'][p1 % 5] == -1:
+                if res[r1][t1]['course'] == course['name']:
+                    if course['like'][t1 % 5] == -1:
                         for index, c in enumerate(course['like']):
                             if c == 1 or c == 0:
                                 like_time.append(index)
-                    elif course['like'][p1 % 5] == 0:
+                    elif course['like'][t1 % 5] == 0:
                         for index, c in enumerate(course['like']):
                             if c == 1:
                                 like_time.append(index)
@@ -675,344 +717,279 @@ def B_c_course(res, cr, tr,courses,schedule_all):
             if len(like_time) > 0:
                 break
 
-        nums = [i for i in range(25) if i % 5 in like_time]
 
-        n = 0
-        while n < 100:
-            n = n + 1
-            # 从列表中随机选择一个整数
-            p = random.choice(nums)
-            r = random.choice(used_classroom_indices1)
-            if (res[r][p] and (res[r][p]['course'] != res[M][p1]['course'] and classrooms[M]['type'] in res[r][p][
-                'allowed_classrooms'])) or schedule_all[r][p] is None:
-                if check(r, p, M, p1, res, cr, tr):
-                    res[r][p], res[M][p1] = res[M][p1], res[r][p]
-                    schedule_all[r][p], schedule_all[M][p1] = schedule_all[M][p1], schedule_all[r][p]
-                    break
+        T2 = [i for i in range(25) if i % 5 in like_time]
+        sign = False
+        while len(T2) > 0:
+            t2 = random.choice(T2)
+            R2=copy.deepcopy(used_classroom_indices1)
+            while len(R2) > 0:
+                r2 = random.choice(R2)
+                if (res[r2][t2] and (
+                        res[r2][t2]['course'] != res[r1][t1]['course'] and classrooms[r1]['type'] in res[r2][t2][
+                    'allowed_classrooms'])) or schedule_all[r2][t2] is None:
+                    if check(r2, t2, r1, t1, res, cr, tr):
+                        res[r1][t1], res[r2][t2] = res[r2][t2], res[r1][t1]
+                        schedule_all[r1][t1], schedule_all[r2][t2] = schedule_all[r2][t2], schedule_all[r1][t1]
+                        sign = True
+                        break
+                R2.remove(r2)
+            if sign:
+                break
+            T2.remove(t2)
     return [res, cr, tr]
 
 
+def B_c_teacher(res, cr, tr,teachers,schedule_all):
+    for x in range(1):
+        while True:
+            used_classroom_indices=[]
+            used_indices=[]
+            for i in range(len(res)):
+                for j in range(0,25):
+                    if res[i][j]:
+                        used_indices.append([i,j])
+                        used_classroom_indices.append(i)
+            u = random.choice(used_indices)
 
-def B_c_teacher(res, cr, tr, teachers, schedule_all):
-    # 初始化数据结构和缓存
-    teacher_like_cache = {}
-    course_room_cache = {}
-    time_period_to_day = {i: i // 5 for i in range(25)}
+            r1,t1=u[0],u[1]
+            used_classroom_indices1 = []
+            for classroom_index in used_classroom_indices:
+                if classrooms[classroom_index]['type'] in res[r1][t1]['allowed_classrooms']:
+                    used_classroom_indices1.append(classroom_index)
 
-    # 按课程和教师分组的时间段索引，加速候选查找
-    course_slots = defaultdict(set)  # 使用集合代替列表
-    teacher_slots = defaultdict(set)
-    used_indices = []
+            like_time = []
+            for teacher in teachers:
+                if res[r1][t1]['teacher'] == teacher['name']:
+                    if teacher['like1'][t1 // 5] == -1:
+                        for index1, lt in enumerate(teacher['like1']):
+                            if lt >= 0:
+                                like_time.append(index1)
 
-    # 初始化索引缓存
-    for i in range(len(res)):
-        for j in range(25):
-            if res[i][j]:
-                used_indices.append((i, j))
-                course_slots[res[i][j]['course']].add((i, j))
-                teacher_slots[res[i][j]['teacher']].add((i, j))
+                    elif teacher['like1'][t1 // 5] == 0:
+                        for index1, lt in enumerate(teacher['like1']):
+                            if lt  >= 1:
+                                like_time.append(index1)
 
-    # 预计算教室类型
-    classroom_types = [c['type'] for c in classrooms]
+                    break
+            if len(like_time) > 0:
+                break
+        T2 = [i for i in range(25) if i // 5 in like_time]
+        sign = False
+        while len(T2) > 0:
+            t2 = random.choice(T2)
+            R2=copy.deepcopy(used_classroom_indices1)
+            while len(R2) > 0:
+                r2 = random.choice(R2)
+                if (res[r2][t2] and (
+                        res[r2][t2]['course'] != res[r1][t1]['course'] and classrooms[r1]['type'] in res[r2][t2][
+                    'allowed_classrooms'])) or schedule_all[r2][t2] is None:
+                    if check(r2, t2, r1, t1, res, cr, tr):
+                        res[r1][t1], res[r2][t2] = res[r2][t2], res[r1][t1]
+                        schedule_all[r1][t1], schedule_all[r2][t2] = schedule_all[r2][t2], schedule_all[r1][t1]
+                        sign = True
+                        break
+                R2.remove(r2)
+            if sign:
+                break
+            T2.remove(t2)
+    return [res, cr, tr]
 
-    # 预计算教师信息映射
-    teacher_map = {t['name']: t for t in teachers}
-
-    for _ in range(5):
-        if not used_indices:
-            break
-
-        M, p1 = random.choice(used_indices)
-        day_p1 = time_period_to_day[p1]
-        current_course = res[M][p1]['course']
-        teacher_name = res[M][p1]['teacher']
-
-        # 获取或缓存课程允许的教室类型
-        if current_course not in course_room_cache:
-            course_room_cache[current_course] = set(res[M][p1]['allowed_classrooms'])
-
-        allowed_rooms_M = course_room_cache[current_course]
-        room_type_M = classroom_types[M]  # 使用预计算的教室类型
-
-        # 获取教师喜欢的时间段
-        if teacher_name not in teacher_like_cache:
-            teacher = teacher_map[teacher_name]  # 使用预计算的教师映射
-            like1 = teacher['like1']
-            current_preference = like1[day_p1]
-
-            if current_preference == -1:
-                like_days = [i for i, t in enumerate(like1) if t >= 0]
-            elif current_preference == 0:
-                like_days = [i for i, t in enumerate(like1) if t >= 1]
-            else:
-                like_days = []
-
-            teacher_like_cache[teacher_name] = like_days
-        else:
-            like_days = teacher_like_cache[teacher_name]
-
-        if not like_days:
-            continue
-
-        # 从教师喜欢的天中随机选择一天
-        target_day = next((d for d in like_days if d != day_p1), None)
-        if target_day is None:
-            continue
-
-        # 从目标天获取候选时间段
-        target_slots = [
-            (i, j) for i, j in teacher_slots.get(teacher_name, [])
-            if time_period_to_day[j] == target_day and
-               res[i][j]['course'] != current_course
-        ]
-
-        if not target_slots:
-            continue
-
-        # 随机打乱并限制尝试次数
-        random.shuffle(target_slots)
-
-        for r, p in target_slots[:20]:  # 进一步减少尝试次数
-            other_course = res[r][p]['course']
-
-            # 检查教室类型兼容性
-            if classroom_types[r] not in allowed_rooms_M:  # 使用预计算的教室类型
-                continue
-
-            # 缓存并检查对方课程允许的教室类型
-            if other_course not in course_room_cache:
-                course_room_cache[other_course] = set(res[r][p]['allowed_classrooms'])
-
-            if room_type_M not in course_room_cache[other_course]:
-                continue
-
-            # 执行检查并交换
-            if check(r, p, M, p1, res, cr, tr):
-                # 交换课程
-                res[r][p], res[M][p1] = res[M][p1], res[r][p]
-                schedule_all[r][p], schedule_all[M][p1] = schedule_all[M][p1], schedule_all[r][p]
-
-                # 更新索引缓存
-                course_slots[current_course].remove((M, p1))
-                course_slots[current_course].add((r, p))
-                course_slots[other_course].remove((r, p))
-                course_slots[other_course].add((M, p1))
-
+def B_method(res, cr, tr,teachers,schedule_all):
+    used_classroom_indices = []
+    pairs = [(0, 1), (2, 3), (5, 6), (7, 8), (10, 11), (12, 13), (15, 16), (17, 18), (20, 21), (22, 23)]
+    for classroom_index in range(len(res)):
+        if any(res[classroom_index]):
+            used_classroom_indices.append(classroom_index)
+    # print("cr:",used_classroom_indices)
+    for x in range(5):
+        while True:
+            M = random.choice(used_classroom_indices)
+            used_classroom_time_indices = []
+            for i in range(25):
+                if res[M][i]:
+                    used_classroom_time_indices.append(i)
+            if used_classroom_time_indices is None:
+                print(classrooms['id'][M])
+                plot_schedule(res,classrooms)
                 break
 
-    return [res, cr, tr]
+            p1 = random.choice(used_classroom_time_indices)
+            tt = res[M][p1]['teacher']
 
+            like_time = []
+            no = []
+            swap_list = []
+            for teacher in teachers:
+                if res[M][p1]['teacher'] == teacher['name']:
 
-def B_method(res, cr, tr, teachers, schedule_all):
-    teacher_like3_cache = {}  # 缓存教师like3相关数据
-    used_classrooms = [i for i in range(len(res)) if any(res[i])]
-    pairs = [(0, 1), (2, 3), (5, 6), (7, 8), (10, 11), (12, 13), (15, 16), (17, 18), (20, 21), (22, 23)]
+                    if teacher['like3'] == 1:
+                        for pair in pairs:
+                            # 检查集合中是否同时包含括号内的两个数字
+                            if pair[0] in tr[teacher['name']] and pair[1] not in tr[teacher['name']]:
+                                if res[M][pair[1]]:
+                                    like_time.append(pair[1])
+                            elif pair[0] not in tr[teacher['name']] and pair[1] in tr[teacher['name']]:
+                                if res[M][pair[0]]:
+                                    like_time.append(pair[0])
+                            elif pair[0]  in tr[teacher['name']] and pair[1] in tr[teacher['name']]:
+                                no.append(pair[0])
+                                no.append(pair[1])
+                        break
 
-    for _ in range(2):
-        if not used_classrooms:
-            break
-
-        M = random.choice(used_classrooms)
-        used_times = [i for i in range(25) if res[M][i]]
-
-        if not used_times:
-            continue
-
-        p1 = random.choice(used_times)
-        teacher_name = res[M][p1]['teacher']
-
-        # 获取教师like3相关数据
-        if teacher_name not in teacher_like3_cache:
-            teacher = next(t for t in teachers if t['name'] == teacher_name)
-            like3 = teacher['like3']
-            teacher_tr = tr[teacher_name]
-
-            if like3 == 1:
-                like_time = []
-                no = []
-
-                for pair in pairs:
-                    a, b = pair
-                    if a in teacher_tr and b not in teacher_tr and res[M][b]:
-                        like_time.append(b)
-                    elif a not in teacher_tr and b in teacher_tr and res[M][a]:
-                        like_time.append(a)
-                    elif a in teacher_tr and b in teacher_tr:
-                        no.append(a)
-                        no.append(b)
-            else:
-                like_time = []
-                no = []
-
-            teacher_like3_cache[teacher_name] = (like_time, no)
-        else:
-            like_time, no = teacher_like3_cache[teacher_name]
-
-        if not like_time:
-            continue
+            if len(like_time) > 0:
+                break
 
         sign = True
-        while like_time and sign:
-            p = random.choice(like_time)
-            like_time.remove(p)
+        while len(like_time) > 0 and sign:
 
-            # 更新no列表
+            p = random.choice(like_time)
             for pair in pairs:
                 if pair[0] == p:
                     no.append(pair[1])
                 elif pair[1] == p:
                     no.append(pair[0])
 
-            # 生成swap_list
-            swap_list = [t for t in tr[teacher_name] if t not in no]
+            for t in tr[teacher['name']]:
+                if t not in no:
+                    swap_list.append(t)
+            like_time.remove(p)
 
-            while swap_list:
-                p1_swap = random.choice(swap_list)
-                swap_list.remove(p1_swap)
+            while len(swap_list) > 0:
+                p1 = random.choice(swap_list)
+                swap_list.remove(p1)
 
-                # 找到包含p1_swap的教室
-                classroom_index = next(
-                    (i for i in used_classrooms if res[i][p1_swap] and res[i][p1_swap]['teacher'] == teacher_name),
-                    None
-                )
+                for classroom_index in used_classroom_indices:
+                    if res[classroom_index][p1] and res[classroom_index][p1]['teacher'] == tt:
+                        M = classroom_index
+                        break
+                if res[M][p1] is None:
+                    break
+                used_classroom_indices1 = []
+                for classroom_index in used_classroom_indices:
+                    if classrooms[classroom_index]['type'] in res[M][p1]['allowed_classrooms']:
+                        used_classroom_indices1.append(classroom_index)
 
-                if classroom_index is None:
-                    continue
-
-                M = classroom_index
-
-                # 优化：预先筛选可用教室索引
-                used_classroom_indices1 = [
-                    i for i in used_classrooms
-                    if res[i][p] and
-                       classrooms[i]['type'] in res[M][p1_swap]['allowed_classrooms']
-                ]
-
-                if not used_classroom_indices1:
-                    continue
-
+                # 从列表中随机选择一个整数
                 r = random.choice(used_classroom_indices1)
-
-                if check(r, p, M, p1_swap, res, cr, tr):
-                    # 交换课程
-                    res[r][p], res[M][p1_swap] = res[M][p1_swap], res[r][p]
-                    schedule_all[r][p], schedule_all[M][p1_swap] = schedule_all[M][p1_swap], schedule_all[r][p]
+                if res[r][p] and check(r, p, M, p1, res, cr, tr):
+                    res[r][p], res[M][p1] = res[M][p1], res[r][p]
+                    schedule_all[r][p], schedule_all[M][p1] = schedule_all[M][p1], schedule_all[r][p]
                     sign = False
                     break
 
-            if not sign:
-                break
-
     return [res, cr, tr]
 
+#计算适应度值
+def c_obj_fun(paths,res):
+    obj_value = 0
+    for i, path in enumerate(paths):
+        obj_value = obj_func_all(res[i][0], path, classrooms, res[i][2]) + obj_value
+    return obj_value
 
-# 遗传的超启发式算法主函数
-def GA_RG_HH(paths, max_iterations=10, population_size=20, crossover_rate=0.8, mutation_rate=0.2):
+
+# 基于遗传和贪婪策略的超启发式算法
+def GA_RG_HH(paths, max_iterations=20, population_size=20, crossover_rate=0.8, mutation_rate=0.2):
 
     print("GA_RG_HH生成初始解中...")
     population = [generate_initial_solution(paths) for _ in range(population_size)]
     print("GA_RG_HH生成完毕")
     best_fitness_per_iteration = []
 
-    # 终止条件需根据实际情况定义，这里先以迭代次数为例
     best_v = float('inf')
     fitness = np.full(population_size, np.inf)  # 初始适应度设为无穷大
 
+    #计算初始种群的适应度值，并更新全局最优
     for ind,pop in enumerate(population):
-        obj_value=0
-        for i, path in enumerate(paths):
-            obj_value = obj_func_all(pop[i+1][0], path, classrooms, pop[i+1][2]) + obj_value
+        obj_value=c_obj_fun(paths,pop[1:len(pop)])
         fitness[ind]=obj_value
         if obj_value<best_v:
             best_v = obj_value
-            near_optimal_solution = copy.deepcopy(population[0])
-
-    num=0
-    for index, classroom in enumerate(classrooms):
-        if (any(near_optimal_solution[1][5][index])):
-            num = num + 1
-    best_fitness_per_iteration.append(best_v + num * 50)
+            near_optimal_solution = copy.deepcopy(population[ind])
 
     print(fitness)
-    print("GA_RG_HH初始最优解：", best_v + num * 50)
+    print("GA_RG_HH初始最优解：", best_v)
 
+    initial_ll = 10
+    step = max_iterations // initial_ll#衰减步长
 
     for iteration in range(max_iterations):
         new_population = []
-        # indexed_lst = list(enumerate(fitness))
-        # sorted_lst = sorted(indexed_lst, key=lambda x: x[1])
-        # solution_a, solution_b = population[sorted_lst[0][0]], population[sorted_lst[1][0]]
-        #
-        # if iteration % (max_iterations // 5) == 0 and iteration != 0 and len(solution_a[0]) > 1:
-        #     solution_a[0] = solution_a[0][0:len(solution_a[0]) - 1]
-        #     solution_b[0] = solution_b[0][0:len(solution_b[0]) - 1]
+        elite_solution = None
+        elite_fitness = float('inf')
 
-        for index in range(population_size):
+        # 记录当前精英解
+        for i in range(population_size):
+            if fitness[i] < elite_fitness:
+                elite_fitness = fitness[i]
+                elite_solution = copy.deepcopy(population[i])
+
+        # 生成新种群（不计算适应度）
+        for index in range(population_size - 1):  # 留出一个位置给精英
             # 选择操作
-            solution_a, solution_b = selection(population,fitness)
-            if iteration % (max_iterations // 10) == 0 and iteration != 0 and len(solution_a[0]) > 1:
-                solution_a[0] = solution_a[0][0:len(solution_a[0]) - 1]
-                solution_b[0] = solution_b[0][0:len(solution_b[0]) - 1]
+            solution_a, solution_b = selection(population, fitness)
 
+            #更新lva的长度
+            ll = initial_ll - (iteration // step)
+            solution_a[0] = solution_a[0][0:int(ll)]
+            solution_b[0] = solution_b[0][0:int(ll)]
+            lva = copy.deepcopy(solution_a[0])
+            lva1 = copy.deepcopy(solution_b[0])
 
-            lva = copy.deepcopy(solution_a[0])  #这里假设低层次启发式向量就是解本身，需根据实际调整
-            lva1=copy.deepcopy(solution_b[0])
-
-            if(len(lva)!=1 and len(lva1)!=1):
+            if len(lva) != 1 and len(lva1) != 1:
                 # 交叉操作
-                if random.random() < crossover_rate and (len(lva)>1 and len(lva1)>1):
+                if random.random() < crossover_rate and (len(lva) > 2 and len(lva1) > 2):
                     lva = two_point_crossover(lva, lva1)
+                else:
+                    lva = one_point_mutation(lva)
                 # 变异操作
                 if random.random() < mutation_rate:
                     lva = one_point_mutation(lva)
             else:
-                # lva[0] = random.randint(0, 8)
-                if iteration < 2*max_iterations/3:
-                    lva[0]=random.randint(3,8)
+                if iteration < 2 * max_iterations / 3:
+                    lva[0] = random.randint(3, 8)
                 else:
-                    lva[0]=3
+                    lva[0] = 3
 
-
-            # 生成新解
+            # 生成新解（不计算适应度）
             sva = update_sva(lva, copy.deepcopy(solution_a[1:len(solution_a)]))
-            new_solution = copy.deepcopy(sva)
+            sign = [lva]
+            for new in sva:
+                sign.append(new)
+            new_population.append(sign)
 
-            new_v=0
-            for i, path in enumerate(paths):
-                new_v = obj_func_all(new_solution[i][0], path, classrooms, new_solution[i][2]) + new_v
-            # print(lva)
-            if new_v < fitness[index]:
+        # 添加精英解
+        new_population.append(elite_solution)
 
-                fitness[index] = new_v
-                sign=[lva]
-                for new in new_solution:
-                    sign.append(new)
-                new_population.append(sign)
+        # 统一计算适应度
+        new_fitness = []
+        for solution in new_population:
+            new_v = c_obj_fun(paths, solution[1:])
+            new_fitness.append(new_v)
 
-                if new_v < best_v:
-                    best_v = new_v
-                    near_optimal_solution = copy.deepcopy(new_population[index])
-            else:
-                new_population.append(copy.deepcopy(solution_a))
+        # 更新最佳解
+        min_index = new_fitness.index(min(new_fitness))
+        if new_fitness[min_index] < best_v:
+            best_v = new_fitness[min_index]
+            near_optimal_solution = copy.deepcopy(new_population[min_index])
 
-        num = 0
-        for index, classroom in enumerate(classrooms):
-            if (any(near_optimal_solution[1][5][index])):
-                num = num + 1
-
-        print("GA_RG_HH_iter:", iteration, ",best_v:", best_v+num*50, ",best_o:", near_optimal_solution[0])
-        best_fitness_per_iteration.append(best_v+num*50)
+        # 更新种群和适应度数组
         population = new_population
+        fitness = new_fitness
 
+        print("GA_RG_HH_iter:", iteration, ",best_v:", best_v, ",best_o:", near_optimal_solution[0])
+        best_fitness_per_iteration.append(best_v)
+
+    #记录适应度函数每个方向的值
     detail=[0,0,0,0,0,0]
     for i, path in enumerate(paths):
         de = obj_func_detail(near_optimal_solution[i+1][0], path, classrooms, near_optimal_solution[i+1][2])
         for j,deta in enumerate(detail):
             detail[j]=detail[j]+de[j]
-    detail.append(num)
     detail[1]=detail[1]/len(paths)
     print(detail)
-    return near_optimal_solution[1:len(near_optimal_solution)], best_v+num*50, best_fitness_per_iteration,num,detail
+
+    return near_optimal_solution[1:len(near_optimal_solution)], best_v, best_fitness_per_iteration,detail
 
 
 if __name__ == "__main__":
@@ -1025,11 +1002,10 @@ if __name__ == "__main__":
     # ]
 
     start = time.time()
-    best_path, best_v, x,num,detail = GA_RG_HH(paths,300)
+    best_path, best_v, x,detail = GA_RG_HH(paths,300)
     end = time.time()
     print("生成解的时间：", end - start)
     print("最短距离:", best_v)
-    print("教室数量：", num)
     for i, path in enumerate(paths):
         obj_func_all_print(best_path[i][0], path, classrooms, best_path[i][2])
 
