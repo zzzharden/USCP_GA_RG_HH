@@ -981,7 +981,7 @@ def GA_RG_HH(paths, max_iterations=20, population_size=20, crossover_rate=0.8, m
         best_fitness_per_iteration.append(best_v)
 
     #记录适应度函数每个方向的值
-    detail=[0,0,0,0,0,0]
+    detail=[0,0,0,0,0,0,0]
     for i, path in enumerate(paths):
         de = obj_func_detail(near_optimal_solution[i+1][0], path, classrooms, near_optimal_solution[i+1][2])
         for j,deta in enumerate(detail):
