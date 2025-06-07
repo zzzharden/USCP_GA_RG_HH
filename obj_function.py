@@ -1,5 +1,7 @@
 import time
 from collections import defaultdict
+
+from data_gen import class_hours
 from data_loader import data,data1
 import numpy as np
 
@@ -34,9 +36,11 @@ def preprocess_distributions(schedule, classes):
     # 预先计算时间槽到天数的映射
     timeslot_to_day = np.arange(days_per_week * timeslots_per_day) // timeslots_per_day
 
+    class_hours=0
     for classroom_idx, classroom_schedule in enumerate(schedule):
         for timeslot, course_info in enumerate(classroom_schedule):
             if course_info:
+                class_hours=class_hours+course_info['time']
                 day_idx = timeslot_to_day[timeslot]
                 time_weeks = min(course_info['time'], total_weeks)  # 限制最大周数
 
@@ -46,7 +50,7 @@ def preprocess_distributions(schedule, classes):
                     class_idx = class_id_to_idx[class_id]
                     class_distribution[class_idx, weeks, day_idx] += 1
 
-    return class_distribution
+    return class_distribution,class_hours
 
 
 def evaluate_class_distribution(class_distribution):
@@ -56,7 +60,7 @@ def evaluate_class_distribution(class_distribution):
     return np.mean(mean_std)  # 全局平均值
 
 
-def evaluate_teacher_distribution(teachers,tr):
+def teacher_continuity(teachers,tr):
     p3=0
     num=0
     pairs = [(0, 1), (2, 3), (5, 6), (7, 8), (10, 11), (12, 13), (15, 16), (17, 18), (20, 21), (22, 23)]
@@ -167,17 +171,17 @@ def cr_num(schedule):
 def obj_func_all(schedule,path,classrooms,tr):
     courses_task, teachers, classes, courses = data1(path)
     p1 = calculate_night_course(schedule)  # 软约束1：晚上应少分配课程任务
-    class_distribution = preprocess_distributions(schedule,classes)
+    class_distribution,class_hours = preprocess_distributions(schedule,classes)
     p2 = evaluate_class_distribution(class_distribution)  # 软约束2：班级在一周中要上的课程分布要均匀
-    p3 = evaluate_teacher_distribution(teachers,tr)  # 软约束3：老师尽量分配其喜欢的教学方式
+    p3 = teacher_continuity(teachers,tr)  # 软约束3：老师尽量分配其喜欢的教学方式
     p4 = teacher_like(schedule,teachers)  # 软约束4：教师教学尽量安排在其偏好时间
     p5 = course_like(schedule,courses)  # 软约束5：课程尽量安排在其合适时间
     p6,num = course_perday(schedule)   #软约束6：相同课程一天不能安排超过一个时间段
     p7 = cr_num(schedule)
-
-    n1,n2,n3,n4,n5,n6,n7=1,1000,1,1,1,1,10#量级平衡系数,n7,n8,10,1
-    w1,w2,w3,w4,w5,w6,w7=3,3,1,1,1,3,5#权重分配,w7,w8,3,3
-    value = w1 * n1 * p1 + w2 * n2 * p2 - w3 * n3 * p3 - w4 * n4 * p4 - w5 * n5 * p5 + w6 * n6 * p6+ w7* n7 * p7
+    p22=p2*class_hours
+    p77=p7*timeslots_per_day*days_per_week*total_weeks
+    w1,w2,w3,w4,w5,w6,w7=2,2,1,1,1,2,1#权重分配
+    value = w1 * p1 + w2 * p22 - w3 *  p3 - w4 *  p4 - w5 *  p5 + w6 *  p6+ w7*  p77
     value = round(value, 2)
 
     return value
@@ -186,39 +190,42 @@ def obj_func_all(schedule,path,classrooms,tr):
 def obj_func_detail(schedule,path,classrooms,tr):
     courses_task, teachers, classes, courses = data1(path)
     p1 = calculate_night_course(schedule)  # 软约束1：晚上应少分配课程任务
-    class_distribution = preprocess_distributions(schedule,classes)
+    class_distribution,class_hours = preprocess_distributions(schedule,classes)
     p2 = evaluate_class_distribution(class_distribution)  # 软约束2：班级在一周中要上的课程分布要均匀
-    p3 = evaluate_teacher_distribution(teachers,tr)  # 软约束3：老师尽量分配其喜欢的教学方式
-    p4 = teacher_like(schedule,teachers)  # 软约束4：教师教学尽量安排在其偏好时间
-    p5 = course_like(schedule,courses)  # 软约束5：课程尽量安排在其合适时间
-    p6,num = course_perday(schedule)   #软约束6：相同课程一天不能安排超过一个时间段
-    p7=cr_num(schedule)
-
-    return [p1,round(p2, 4),p3,p4,p5,p6,p7]
-
-def obj_func_all_print(schedule,path,classrooms,tr):
-    courses_task, teachers, classes, courses = data1(path)
-    p1 = calculate_night_course(schedule)  # 软约束1：晚上应少分配课程任务
-    class_distribution = preprocess_distributions(schedule,classes)
-    p2 = evaluate_class_distribution(class_distribution)  # 软约束2：班级在一周中要上的课程分布要均匀
-    p3 = evaluate_teacher_distribution(teachers,tr)  # 软约束3：老师尽量分配其喜欢的教学方式
+    p3 = teacher_continuity(teachers,tr)  # 软约束3：老师尽量分配其喜欢的教学方式
     p4 = teacher_like(schedule,teachers)  # 软约束4：教师教学尽量安排在其偏好时间
     p5 = course_like(schedule,courses)  # 软约束5：课程尽量安排在其合适时间
     p6,num = course_perday(schedule)   #软约束6：相同课程一天不能安排超过一个时间段
     p7 = cr_num(schedule)
+    p22=p2*class_hours
+    p77=p7*timeslots_per_day*days_per_week*total_weeks
 
-    n1,n2,n3,n4,n5,n6,n7=1,1000,1,1,1,1,10#量级平衡系数,n7,n8,10,1
-    w1,w2,w3,w4,w5,w6,w7=3,3,1,1,1,3,5#权重分配,w7,w8,3,3
-    value = w1 * n1 * p1 + w2 * n2 * p2 - w3 * n3 * p3 - w4 * n4 * p4 - w5 * n5 * p5 + w6 * n6 * p6+ w7* n7 * p7
+    return [p1,round(p22, 2),p3,p4,p5,p6,p77,round(p2, 4),p7]
+
+def obj_func_all_print(schedule,path,classrooms,tr):
+    courses_task, teachers, classes, courses = data1(path)
+    p1 = calculate_night_course(schedule)  # 软约束1：晚上应少分配课程任务
+    class_distribution,class_hours = preprocess_distributions(schedule,classes)
+    p2 = evaluate_class_distribution(class_distribution)  # 软约束2：班级在一周中要上的课程分布要均匀
+    p3 = teacher_continuity(teachers,tr)  # 软约束3：老师尽量分配其喜欢的教学方式
+    p4 = teacher_like(schedule,teachers)  # 软约束4：教师教学尽量安排在其偏好时间
+    p5 = course_like(schedule,courses)  # 软约束5：课程尽量安排在其合适时间
+    p6,num = course_perday(schedule)   #软约束6：相同课程一天不能安排超过一个时间段
+    p7 = cr_num(schedule)
+    p22=p2*class_hours
+    p77=p7*timeslots_per_day*days_per_week*total_weeks
+    w1,w2,w3,w4,w5,w6,w7=2,2,1,1,1,2,1#权重分配,w7,w8,3,3
+    value = w1 * p1 + w2 * p22 - w3 *  p3 - w4 *  p4 - w5 *  p5 + w6 *  p6+ w7*  p77
     value = round(value, 2)
+
     print("夜晚安排总课时数:", p1,",",p1*3)
-    print(f"所有班级的课程分布均匀性:{p2:.4f}, p2={p2*3000:.4f}")
+    print(f"所有班级的课程分布均匀性:{p2:.4f}, p2={p22:.4f}")
     print("符合老师教学习惯（离散/连续）净总课时数(符合数量-不符合数量):",p3, ",",p3*1)
     print('符合教师时间偏好净总课时数(符合数量-不符合数量):',p4,",", p4*1)
     print('符合课程适合时间净总课时数(符合数量-不符合数量):',p5,",", p5*1)
     print("班级每天过度安排某门课的总课时数： ",p6,",num:",num,",",p6*3)
-    print("使用教室数量：",p7,",",p7*50)
-    print('p1 + p2 - p3 - p4 - p5 + p6 + p7:', value)
+    print("使用教室数量：",p7,",",p77)
+    print('p1 + p22 - p3 - p4 - p5 + p6 + p77:', value)
     return value
 
 def obj_func_time(schedule,path,classrooms,tr):
@@ -237,7 +244,7 @@ def obj_func_time(schedule,path,classrooms,tr):
     res_time.append(end-start)
 
     start = time.time()
-    p3 = evaluate_teacher_distribution(teachers,tr)  # 软约束3：老师尽量分配其喜欢的教学方式
+    p3 = teacher_continuity(teachers,tr)  # 软约束3：老师尽量分配其喜欢的教学方式
     end=time.time()
     res_time.append(end-start)
 
@@ -262,11 +269,6 @@ def obj_func_time(schedule,path,classrooms,tr):
     res_time.append(end - start)
 
     print(res_time)
-
-    n1,n2,n3,n4,n5,n6,n7=1,1000,1,1,1,1,10#量级平衡系数,n7,n8,10,1
-    w1,w2,w3,w4,w5,w6,w7=3,3,1,1,1,3,5#权重分配,w7,w8,3,3
-    value = w1 * n1 * p1 + w2 * n2 * p2 - w3 * n3 * p3 - w4 * n4 * p4 - w5 * n5 * p5 + w6 * n6 * p6+ w7* n7 * p7
-    value = round(value, 2)
-    return value
+    return res_time
 
 
