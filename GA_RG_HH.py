@@ -18,7 +18,7 @@ total_weeks = 16
 days_per_week = 5
 timeslots_per_day = 5
 total_timeslots = days_per_week * timeslots_per_day
-classrooms = data2(r'classrooms.xlsx')
+classrooms = data2(r'data\classrooms.xlsx')
 
 # 生成初始解的函数
 def generate_initial_solution(paths):
@@ -898,8 +898,8 @@ def GA_RG_HH(paths, max_iterations=20, population_size=20, crossover_rate=0.8, m
 
 if __name__ == "__main__":
     paths = [
-        r'large_new\data1_4.xlsx',
-         r'large_new\data2.xlsx',
+        r'data\large_new\data1_4.xlsx',
+         r'data\large_new\data2.xlsx',
     ]
     # paths = [
     #     r'data\small_new\l_data05.xlsx',
