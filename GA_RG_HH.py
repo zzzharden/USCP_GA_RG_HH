@@ -6,7 +6,9 @@ from collections import defaultdict
 
 import numpy as np
 
-from plot import plot_schedule, plot_teacher_schedule, plot_class_schedule, plot_class_heatmap, plot_schedule1
+from generate_initial_solution import schedule_courses
+from plot import plot_schedule, plot_teacher_schedule, plot_class_schedule, plot_class_heatmap, plot_schedule1, \
+    plot_schedule2
 import random
 from data_loader import data, data1, data2
 from obj_function import obj_func_all, obj_func_all_print, obj_func_detail
@@ -17,96 +19,6 @@ days_per_week = 5
 timeslots_per_day = 5
 total_timeslots = days_per_week * timeslots_per_day
 classrooms = data2(r'classrooms.xlsx')
-
-
-# 贪婪策略生成初始解
-def schedule_courses(courses_task, classes, teachers, schedule_all, col):
-    # 初始化排课表
-    schedule = np.full((len(classrooms), total_timeslots), None)
-    # 按班级数量降序排序课程
-    courses_task = sorted(courses_task, key=lambda x: -len(x['class']))
-
-    while True:
-        # 初始化班级和教师的排课时间表
-        class_schedule = {i: set() for i in classes}
-        teacher_schedule = {i['name']: set() for i in teachers}
-
-        # 初始化可用时间段的字典
-        available_timeslots_dict = {}
-        for classroom in classrooms:
-            classroom_type = classroom['type']
-            if classroom_type not in available_timeslots_dict:
-                available_timeslots_dict[classroom_type] = []
-            for i in range(total_timeslots):
-                if schedule_all[classrooms.index(classroom)][i] is None:
-                    available_timeslots_dict[classroom_type].append((i, classrooms.index(classroom)))
-
-        success = True
-        for course in courses_task:
-            remaining_duration = course['duration']
-            while remaining_duration > 0:
-                dtime = min(remaining_duration, total_weeks)
-                allowed_types = course['allowed_classrooms']
-                available_timeslots = []
-                for classroom_type in allowed_types:
-                    if classroom_type in available_timeslots_dict:
-                        for timeslot, classroom_index in available_timeslots_dict[classroom_type]:
-                            all_classes_available = all(
-                                timeslot not in class_schedule[class_id] for class_id in course['class'])
-                            if all_classes_available and timeslot not in teacher_schedule[course['teacher']]:
-                                available_timeslots.append((timeslot, classroom_index))
-
-                if not available_timeslots:
-                    print(f"无法安排课程: {course}")
-                    success = False
-                    break
-
-                probability = random.random()
-                used_classroom_timeslots = [(ts, ci) for ts, ci in available_timeslots if
-                                            any(schedule_all[ci])]
-                if probability < 0.95 and used_classroom_timeslots:
-                    start_timeslot, classroom_index = random.choice(used_classroom_timeslots)
-                else:
-                    start_timeslot, classroom_index = random.choice(available_timeslots)
-
-                # 更新排课表
-                schedule[classroom_index][start_timeslot] = {
-                    'id': course['id'], 'course': course['course'], 'class': course['class'],
-                    'teacher': course['teacher'], 'duration': course['duration'],
-                    'classroom': classrooms[classroom_index]['id'], 'allowed_classrooms': course['allowed_classrooms'],
-                    'time': dtime
-                }
-                schedule_all[classroom_index][start_timeslot] = {
-                    'id': col + '-' + str(course['id']), 'course': course['course'], 'class': course['class'],
-                    'teacher': course['teacher'], 'duration': course['duration'],
-                    'classroom': classrooms[classroom_index]['id'], 'allowed_classrooms': course['allowed_classrooms'],
-                    'time': dtime
-                }
-
-                # 更新班级和教师的排课时间表
-                for class_id in course['class']:
-                    class_schedule[class_id].add(start_timeslot)
-                teacher_schedule[course['teacher']].add(start_timeslot)
-
-                # 从可用时间段字典中移除已使用的时间段
-                classroom_type = classrooms[classroom_index]['type']
-                available_timeslots_dict[classroom_type].remove((start_timeslot, classroom_index))
-
-                remaining_duration -= dtime
-            if not success:
-                break
-
-        if not success:
-            print("排课失败，正在重新排课...")
-            # 清空排课表
-            for i in range(len(schedule)):
-                for j in range(len(schedule[i])):
-                    if schedule[i][j]:
-                        schedule[i][j] = None
-                        schedule_all[i][j] = None
-        else:
-            return schedule, class_schedule, teacher_schedule
-
 
 # 生成初始解的函数
 def generate_initial_solution(paths):
@@ -182,7 +94,8 @@ def update_sva(lva, sol):
             if i == 0:
                 s = A_swap_random_timeslots(v[0], v[1], v[2], v[5])
             elif i == 1:
-                s = A_reverse_consecutive_timeslots(v[0], v[1], v[2], v[5])
+                # s = A_reverse_consecutive_timeslots(v[0], v[1], v[2], v[5])
+                pass
             elif i == 2:
                 s = A_swap_classroom_type_timeslots(v[0], v[1], v[2], v[5])
             elif i == 3:
@@ -215,95 +128,40 @@ def A_swap_random_timeslots(schedule, class_schedule, teacher_schedule, schedule
         if any(schedule_all[classroom_index]):
             used_classroom_indices.append(classroom_index)
 
-    """
-    随机交换排课表中的两列元素（两个时间段），并同步更新班级和教师的时间表
-
-    参数:
-    schedule (list): 排课表，二维数组，格式为 [教室][时间段]
-    class_schedule (dict): 班级时间表，{班级ID: 已排课的时间段集合}
-    teacher_schedule (dict): 教师时间表，{教师姓名: 已排课的时间段集合}
-
-    返回:
-    tuple: (交换后的排课表, 班级时间表, 教师时间表, 被交换的两个时间段索引)
-    """
     # 随机选择两个不同的时间段
     # timeslot1, timeslot2 = random.sample(range(total_timeslots), 2)
     swap_list_1 = []
     for i in range(25):
         if i % 5 != 4:
             swap_list_1.append(i)
-    swap_list_2=[4,9,14,19,24]
+    swap_list_2 = [4, 9, 14, 19, 24]
     timeslot1 = random.choice(range(total_timeslots))
     if timeslot1 in swap_list_2:
         swap_list_2.remove(timeslot1)
-        timeslot2=random.choice(swap_list_2)
+        timeslot2 = random.choice(swap_list_2)
     else:
         swap_list_1.remove(timeslot1)
-        timeslot2=random.choice(swap_list_1)
+        timeslot2 = random.choice(swap_list_1)
 
-    # 1. 更新班级和教师时间表
-    # 收集所有课程涉及的班级和教师
-    classes_involved = set()
-    teachers_involved = set()
-
-    # 遍历所有教室的这两个时间段
-    for classroom_idx in range(len(schedule)):
-        # 处理时间段1的课程
-        course1 = schedule[classroom_idx][timeslot1]
-        if course1:
-            classes_involved.update(course1['class'])
-            teachers_involved.add(course1['teacher'])
-
-        # 处理时间段2的课程
-        course2 = schedule[classroom_idx][timeslot2]
-        if course2:
-            classes_involved.update(course2['class'])
-            teachers_involved.add(course2['teacher'])
-
-    # 更新班级时间表：交换两个时间段的记录
-    for class_id in classes_involved:
-        slots = class_schedule[class_id]
-        has_slot1 = timeslot1 in slots
-        has_slot2 = timeslot2 in slots
-
-        if has_slot1 and not has_slot2:
-            slots.remove(timeslot1)
-            slots.add(timeslot2)
-        elif has_slot2 and not has_slot1:
-            slots.remove(timeslot2)
-            slots.add(timeslot1)
-        elif has_slot1 and has_slot2:
-            pass  # 两个时间段都有课，无需修改
-        else:
-            pass  # 两个时间段都没课，无需修改
-
-    # 更新教师时间表：交换两个时间段的记录
-    for teacher_id in teachers_involved:
-        slots = teacher_schedule[teacher_id]
-        has_slot1 = timeslot1 in slots
-        has_slot2 = timeslot2 in slots
-
-        if has_slot1 and not has_slot2:
-            slots.remove(timeslot1)
-            slots.add(timeslot2)
-        elif has_slot2 and not has_slot1:
-            slots.remove(timeslot2)
-            slots.add(timeslot1)
-        elif has_slot1 and has_slot2:
-            pass  # 两个时间段都有课，无需修改
-        else:
-            pass  # 两个时间段都没课，无需修改
-
-    # 2. 交换排课表中的两个时间段
-    for classroom in schedule:
-        classroom[timeslot1], classroom[timeslot2] = classroom[timeslot2], classroom[timeslot1]
-        for i in used_classroom_indices:
-            if classroom[timeslot1] and classrooms[i]['id'] == classroom[timeslot1]['classroom']:
-                schedule_all[i][timeslot1], schedule_all[i][timeslot2] = schedule_all[i][timeslot2], schedule_all[i][
-                    timeslot1]
-            elif classroom[timeslot2] and classrooms[i]['id'] == classroom[timeslot2]['classroom']:
-                schedule_all[i][timeslot1], schedule_all[i][timeslot2] = schedule_all[i][timeslot2], schedule_all[i][
-                    timeslot1]
+    for used_cr in used_classroom_indices:
+        if schedule[used_cr][timeslot1] and schedule[used_cr][timeslot2]:
+            if check(used_cr, timeslot2, used_cr, timeslot1, schedule, class_schedule, teacher_schedule):
+                schedule[used_cr][timeslot1], schedule[used_cr][timeslot2] = schedule[used_cr][timeslot2], \
+                    schedule[used_cr][timeslot1]
+                schedule_all[used_cr][timeslot1], schedule_all[used_cr][timeslot2] = schedule_all[used_cr][timeslot2], \
+                    schedule_all[used_cr][timeslot1]
+        elif schedule[used_cr][timeslot2] and schedule_all[used_cr][timeslot1] is None:
+            if check(used_cr, timeslot1, used_cr, timeslot2, schedule, class_schedule, teacher_schedule):
+                schedule[used_cr][timeslot1], schedule[used_cr][timeslot2] = schedule[used_cr][timeslot2], \
+                    schedule[used_cr][timeslot1]
+                schedule_all[used_cr][timeslot1], schedule_all[used_cr][timeslot2] = schedule_all[used_cr][timeslot2], \
+                    schedule_all[used_cr][timeslot1]
+        elif schedule[used_cr][timeslot1] and schedule_all[used_cr][timeslot2] is None:
+            if check(used_cr, timeslot2, used_cr, timeslot1, schedule, class_schedule, teacher_schedule):
+                schedule[used_cr][timeslot1], schedule[used_cr][timeslot2] = schedule[used_cr][timeslot2], \
+                    schedule[used_cr][timeslot1]
+                schedule_all[used_cr][timeslot1], schedule_all[used_cr][timeslot2] = schedule_all[used_cr][timeslot2], \
+                    schedule_all[used_cr][timeslot1]
 
     return [schedule, class_schedule, teacher_schedule]
 
@@ -409,19 +267,7 @@ def A_reverse_consecutive_timeslots(schedule, class_schedule, teacher_schedule, 
 
 
 def A_swap_classroom_type_timeslots(schedule, class_schedule, teacher_schedule, schedule_all):
-    """
-    随机交换两个时间段中某一类教室的所有元素，同时更新班级、教师和全局的时间表
 
-    参数:
-    schedule (list): 排课表，二维数组，格式为 [教室][时间段]
-    class_schedule (dict): 班级时间表，{班级ID: 已排课的时间段集合}
-    teacher_schedule (dict): 教师时间表，{教师姓名: 已排课的时间段集合}
-    schedule_all (list): 全局排课表，二维数组，格式为 [教室索引][时间段]
-    classrooms (list): 教室信息列表，包含教室ID和类型等信息
-
-    返回:
-    tuple: (交换后的排课表, 班级时间表, 教师时间表, 全局排课表, 被交换的时间段索引, 教室类型)
-    """
     # 获取所有教室类型
     classroom_types = list({classroom['type'] for classroom in classrooms})
 
@@ -457,14 +303,20 @@ def A_swap_classroom_type_timeslots(schedule, class_schedule, teacher_schedule, 
         timeslot2=random.choice(swap_list_1)
 
     for used_cr in type_indices:
-        if schedule[used_cr][timeslot1]:
+        if schedule[used_cr][timeslot1] and schedule[used_cr][timeslot2]:
             if check(used_cr, timeslot2, used_cr, timeslot1, schedule, class_schedule, teacher_schedule):
                 schedule[used_cr][timeslot1], schedule[used_cr][timeslot2] = schedule[used_cr][timeslot2], \
                 schedule[used_cr][timeslot1]
                 schedule_all[used_cr][timeslot1], schedule_all[used_cr][timeslot2] = schedule_all[used_cr][timeslot2], \
                 schedule_all[used_cr][timeslot1]
-        elif schedule[used_cr][timeslot2]:
+        elif schedule[used_cr][timeslot2] and schedule_all[used_cr][timeslot1] is None:
             if check(used_cr, timeslot1, used_cr, timeslot2, schedule, class_schedule, teacher_schedule):
+                schedule[used_cr][timeslot1], schedule[used_cr][timeslot2] = schedule[used_cr][timeslot2], \
+                schedule[used_cr][timeslot1]
+                schedule_all[used_cr][timeslot1], schedule_all[used_cr][timeslot2] = schedule_all[used_cr][timeslot2], \
+                schedule_all[used_cr][timeslot1]
+        elif schedule[used_cr][timeslot1] and schedule_all[used_cr][timeslot2] is None:
+            if check(used_cr, timeslot2, used_cr, timeslot1, schedule, class_schedule, teacher_schedule):
                 schedule[used_cr][timeslot1], schedule[used_cr][timeslot2] = schedule[used_cr][timeslot2], \
                 schedule[used_cr][timeslot1]
                 schedule_all[used_cr][timeslot1], schedule_all[used_cr][timeslot2] = schedule_all[used_cr][timeslot2], \
@@ -916,12 +768,18 @@ def B_method(res, cr, tr, teachers, schedule_all):
 
     return [res, cr, tr]
 
-
+def c_classrooms(res_all):
+    classrooms_num=0
+    for index in range(0,len(res_all)):
+        if any(res_all[index]):
+            classrooms_num=classrooms_num+1
+    return classrooms_num,classrooms_num * total_weeks*days_per_week*timeslots_per_day
 # 计算适应度值
 def c_obj_fun(paths, res):
-    obj_value = 0
+
+    obj_value = c_classrooms(res[0][5])[1]  #教室目标函数计算
     for i, path in enumerate(paths):
-        obj_value = obj_func_all(res[i][0], path, classrooms, res[i][2]) + obj_value
+        obj_value = obj_func_all(res[i][0], path, res[i][2]) + obj_value
     return obj_value
 
 
@@ -949,7 +807,6 @@ def GA_RG_HH(paths, max_iterations=20, population_size=20, crossover_rate=0.8, m
 
     initial_ll = 10
     target_ll=1
-
 
     for iteration in range(max_iterations):
         new_population = []
@@ -1027,11 +884,13 @@ def GA_RG_HH(paths, max_iterations=20, population_size=20, crossover_rate=0.8, m
     # 记录适应度函数每个方向的值
     detail = [0, 0, 0, 0, 0, 0, 0, 0, 0]
     for i, path in enumerate(paths):
-        de = obj_func_detail(near_optimal_solution[i + 1][0], path, classrooms, near_optimal_solution[i + 1][2])
-        for j, deta in enumerate(detail):
+        de = obj_func_detail(near_optimal_solution[i + 1][0], path, c_classrooms(near_optimal_solution[i+1][5])[0], near_optimal_solution[i + 1][2])
+        for j in range(len(detail)):
             detail[j] = detail[j] + de[j]
     detail[1] = detail[1] / len(paths)
     detail[7] = detail[7] / len(paths)
+    detail[6] = detail[6] / len(paths)
+    detail[8] = detail[8] / len(paths)
     print(detail)
 
     return near_optimal_solution[1:len(near_optimal_solution)], best_v, best_fitness_per_iteration, detail
@@ -1047,13 +906,15 @@ if __name__ == "__main__":
     # ]
 
     start = time.time()
-    best_path, best_v, x, detail = GA_RG_HH(paths, 300)
+    best_path, best_v, x, detail = GA_RG_HH(paths, 200)
     end = time.time()
     print("生成解的时间：", end - start)
     print("最短距离:", best_v)
-    for i, path in enumerate(paths):
-        obj_func_all_print(best_path[i][0], path, classrooms, best_path[i][2])
 
+    for i, path in enumerate(paths):
+        obj_func_all_print(best_path[i][0], path, c_classrooms(best_path[i][5])[0], best_path[i][2])
+
+    plot_schedule2(best_path[i][5], classrooms)
     for i, path in enumerate(paths):
         plot_schedule(best_path[i][0], classrooms)
 

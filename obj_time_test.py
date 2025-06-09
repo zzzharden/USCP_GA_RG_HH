@@ -133,7 +133,7 @@ start=time.time()
 obj_value = 0
 res_t=[0,0,0,0,0,0]
 for i, path in enumerate(paths):
-    obj_value = obj_func_time(res[0][0],paths[0],classrooms,res[0][2]) + obj_value
+    obj_value = obj_func_time(res[0][0],paths[0],res[0][2]) + obj_value
 
 end=time.time()
 

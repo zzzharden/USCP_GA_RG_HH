@@ -149,7 +149,7 @@ def plot_schedule2(schedule, classrooms):
     sorted_course_ids = sorted(all_course_ids)
 
     # 自定义颜色映射，生成浅色且区分明显的颜色渐变
-    num_colors = 1388
+    num_colors = 1055
     num_hue_segments = 12
     hue_step = 1 / num_hue_segments
     h_values = []
@@ -194,7 +194,7 @@ def plot_schedule2(schedule, classrooms):
     ax.set_ylabel('classrooms(type_number)', fontsize=14)
     ax.set_yticks(np.arange(len(used_classroom_indices)))
     ax.set_yticklabels([classrooms[i]['id'] for i in used_classroom_indices], fontsize=10)
-    ax.set_title('Instance14(classrooms--timeslots)', fontsize=14)
+    ax.set_title('Instance15(classrooms--timeslots)', fontsize=14)
 
     xticks = [0]
     xticklabels = ['0']
