@@ -572,19 +572,19 @@ def B_course(res, cr, tr, schedule_all):
     return [res, cr, tr]
 
 
-def B_c_course(res, cr, tr, courses, schedule_all):
-    for x in range(1):
-        while True:
-            used_classroom_indices = []
-            used_indices = []
-            for i in range(len(res)):
-                for j in range(0, 25):
-                    if res[i][j]:
-                        used_indices.append([i, j])
-                        used_classroom_indices.append(i)
+def B_c_course(res, cr, tr,courses,schedule_all):
 
+    for x in range(1):
+        used_classroom_indices = []
+        used_indices = []
+        for i in range(len(res)):
+            for j in range(0, 25):
+                if res[i][j]:
+                    used_indices.append([i, j])
+                    used_classroom_indices.append(i)
+        while True and len(used_indices)>0:
             u = random.choice(used_indices)
-            r1, t1 = u[0], u[1]
+            r1,t1=u[0],u[1]
             used_classroom_indices1 = []
             for classroom_index in used_classroom_indices:
                 if classrooms[classroom_index]['type'] in res[r1][t1]['allowed_classrooms']:
@@ -604,12 +604,14 @@ def B_c_course(res, cr, tr, courses, schedule_all):
                     break
             if len(like_time) > 0:
                 break
+            used_indices.remove(u)
+
 
         T2 = [i for i in range(25) if i % 5 in like_time]
         sign = False
         while len(T2) > 0:
             t2 = random.choice(T2)
-            R2 = copy.deepcopy(used_classroom_indices1)
+            R2=copy.deepcopy(used_classroom_indices1)
             while len(R2) > 0:
                 r2 = random.choice(R2)
                 if (res[r2][t2] and (
@@ -627,19 +629,19 @@ def B_c_course(res, cr, tr, courses, schedule_all):
     return [res, cr, tr]
 
 
-def B_c_teacher(res, cr, tr, teachers, schedule_all):
+def B_c_teacher(res, cr, tr,teachers,schedule_all):
     for x in range(1):
-        while True:
-            used_classroom_indices = []
-            used_indices = []
-            for i in range(len(res)):
-                for j in range(0, 25):
-                    if res[i][j]:
-                        used_indices.append([i, j])
-                        used_classroom_indices.append(i)
-            u = random.choice(used_indices)
+        used_classroom_indices = []
+        used_indices = []
+        for i in range(len(res)):
+            for j in range(0, 25):
+                if res[i][j]:
+                    used_indices.append([i, j])
+                    used_classroom_indices.append(i)
 
-            r1, t1 = u[0], u[1]
+        while True and len(used_indices)>0:
+            u = random.choice(used_indices)
+            r1,t1=u[0],u[1]
             used_classroom_indices1 = []
             for classroom_index in used_classroom_indices:
                 if classrooms[classroom_index]['type'] in res[r1][t1]['allowed_classrooms']:
@@ -655,17 +657,19 @@ def B_c_teacher(res, cr, tr, teachers, schedule_all):
 
                     elif teacher['like1'][t1 // 5] == 0:
                         for index1, lt in enumerate(teacher['like1']):
-                            if lt >= 1:
+                            if lt  >= 1:
                                 like_time.append(index1)
 
                     break
             if len(like_time) > 0:
                 break
+            used_indices.remove(u)
+
         T2 = [i for i in range(25) if i // 5 in like_time]
         sign = False
         while len(T2) > 0:
             t2 = random.choice(T2)
-            R2 = copy.deepcopy(used_classroom_indices1)
+            R2=copy.deepcopy(used_classroom_indices1)
             while len(R2) > 0:
                 r2 = random.choice(R2)
                 if (res[r2][t2] and (
@@ -683,7 +687,7 @@ def B_c_teacher(res, cr, tr, teachers, schedule_all):
     return [res, cr, tr]
 
 
-def B_method(res, cr, tr, teachers, schedule_all):
+def B_method(res, cr, tr,teachers,schedule_all):
     used_classroom_indices = []
     pairs = [(0, 1), (2, 3), (5, 6), (7, 8), (10, 11), (12, 13), (15, 16), (17, 18), (20, 21), (22, 23)]
     for classroom_index in range(len(res)):
@@ -691,16 +695,14 @@ def B_method(res, cr, tr, teachers, schedule_all):
             used_classroom_indices.append(classroom_index)
     # print("cr:",used_classroom_indices)
     for x in range(5):
-        while True:
-            M = random.choice(used_classroom_indices)
-            used_classroom_time_indices = []
-            for i in range(25):
-                if res[M][i]:
-                    used_classroom_time_indices.append(i)
-            if used_classroom_time_indices is None:
-                print(classrooms['id'][M])
-                plot_schedule(res, classrooms)
-                break
+        M = random.choice(used_classroom_indices)
+        used_classroom_time_indices = []
+        for i in range(25):
+            if res[M][i]:
+                used_classroom_time_indices.append(i)
+        if used_classroom_time_indices is None:
+            continue
+        while True and len(used_classroom_time_indices)>0:
 
             p1 = random.choice(used_classroom_time_indices)
             tt = res[M][p1]['teacher']
@@ -720,13 +722,14 @@ def B_method(res, cr, tr, teachers, schedule_all):
                             elif pair[0] not in tr[teacher['name']] and pair[1] in tr[teacher['name']]:
                                 if res[M][pair[0]]:
                                     like_time.append(pair[0])
-                            elif pair[0] in tr[teacher['name']] and pair[1] in tr[teacher['name']]:
+                            elif pair[0]  in tr[teacher['name']] and pair[1] in tr[teacher['name']]:
                                 no.append(pair[0])
                                 no.append(pair[1])
                         break
 
             if len(like_time) > 0:
                 break
+            used_classroom_time_indices.remove(p1)
 
         sign = True
         while len(like_time) > 0 and sign:
@@ -898,8 +901,8 @@ def GA_RG_HH(paths, max_iterations=20, population_size=20, crossover_rate=0.8, m
 
 if __name__ == "__main__":
     paths = [
-        r'data\large_new\data1_4.xlsx',
-         r'data\large_new\data2.xlsx',
+        r'data\large\data1_4.xlsx',
+         r'data\large\data2.xlsx',
     ]
     # paths = [
     #     r'data\small_new\l_data05.xlsx',

@@ -325,15 +325,14 @@ def B_course(res, cr, tr,schedule_all):
 def B_c_course(res, cr, tr,courses,schedule_all):
 
     for x in range(1):
-        while True:
-            used_classroom_indices=[]
-            used_indices=[]
-            for i in range(len(res)):
-                for j in range(0,25):
-                    if res[i][j]:
-                        used_indices.append([i,j])
-                        used_classroom_indices.append(i)
-
+        used_classroom_indices = []
+        used_indices = []
+        for i in range(len(res)):
+            for j in range(0, 25):
+                if res[i][j]:
+                    used_indices.append([i, j])
+                    used_classroom_indices.append(i)
+        while True and len(used_indices)>0:
             u = random.choice(used_indices)
             r1,t1=u[0],u[1]
             used_classroom_indices1 = []
@@ -355,6 +354,7 @@ def B_c_course(res, cr, tr,courses,schedule_all):
                     break
             if len(like_time) > 0:
                 break
+            used_indices.remove(u)
 
 
         T2 = [i for i in range(25) if i % 5 in like_time]
@@ -381,16 +381,16 @@ def B_c_course(res, cr, tr,courses,schedule_all):
 
 def B_c_teacher(res, cr, tr,teachers,schedule_all):
     for x in range(1):
-        while True:
-            used_classroom_indices=[]
-            used_indices=[]
-            for i in range(len(res)):
-                for j in range(0,25):
-                    if res[i][j]:
-                        used_indices.append([i,j])
-                        used_classroom_indices.append(i)
-            u = random.choice(used_indices)
+        used_classroom_indices = []
+        used_indices = []
+        for i in range(len(res)):
+            for j in range(0, 25):
+                if res[i][j]:
+                    used_indices.append([i, j])
+                    used_classroom_indices.append(i)
 
+        while True and len(used_indices)>0:
+            u = random.choice(used_indices)
             r1,t1=u[0],u[1]
             used_classroom_indices1 = []
             for classroom_index in used_classroom_indices:
@@ -413,6 +413,8 @@ def B_c_teacher(res, cr, tr,teachers,schedule_all):
                     break
             if len(like_time) > 0:
                 break
+            used_indices.remove(u)
+
         T2 = [i for i in range(25) if i // 5 in like_time]
         sign = False
         while len(T2) > 0:
@@ -443,16 +445,14 @@ def B_method(res, cr, tr,teachers,schedule_all):
             used_classroom_indices.append(classroom_index)
     # print("cr:",used_classroom_indices)
     for x in range(5):
-        while True:
-            M = random.choice(used_classroom_indices)
-            used_classroom_time_indices = []
-            for i in range(25):
-                if res[M][i]:
-                    used_classroom_time_indices.append(i)
-            if used_classroom_time_indices is None:
-                print(classrooms['id'][M])
-                plot_schedule(res,classrooms)
-                break
+        M = random.choice(used_classroom_indices)
+        used_classroom_time_indices = []
+        for i in range(25):
+            if res[M][i]:
+                used_classroom_time_indices.append(i)
+        if used_classroom_time_indices is None:
+            continue
+        while True and len(used_classroom_time_indices)>0:
 
             p1 = random.choice(used_classroom_time_indices)
             tt = res[M][p1]['teacher']
@@ -479,6 +479,7 @@ def B_method(res, cr, tr,teachers,schedule_all):
 
             if len(like_time) > 0:
                 break
+            used_classroom_time_indices.remove(p1)
 
         sign = True
         while len(like_time) > 0 and sign:
@@ -522,7 +523,7 @@ def B_method(res, cr, tr,teachers,schedule_all):
 
 
 paths = [
-    r'data\large\data1_4.xlsx',
+    r'data\small\l_data02.xlsx',
 
 ]
 start=time.time()
@@ -530,12 +531,23 @@ res=initialize_population(paths)
 end=time.time()
 print("生成时间:",end-start)
 
-a=0
-b=0
+
+
 for i in range(10000):
-    a=a+A_random(res[0][0],res[0][1],res[0][2],res[0][5])
-    b=b+A_random_new(res[0][0],res[0][1],res[0][2],res[0][5])
-print(a,b)
+    print(i)
+    # B_c_teacher(res[0][0], res[0][1], res[0][2], res[0][3], res[0][5])
+    B_method(res[0][0],res[0][1],res[0][2],res[0][3],res[0][5])
+
+
+
+
+
+# a=0
+# b=0
+# for i in range(10000):
+#     a=a+A_random(res[0][0],res[0][1],res[0][2],res[0][5])
+#     b=b+A_random_new(res[0][0],res[0][1],res[0][2],res[0][5])
+# print(a,b)
 
 
 

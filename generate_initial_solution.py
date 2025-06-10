@@ -17,7 +17,7 @@ total_weeks = 16
 days_per_week = 5
 timeslots_per_day = 5
 total_timeslots = days_per_week * timeslots_per_day
-classrooms = data2(r'classrooms.xlsx')
+classrooms = data2(r'data\classrooms.xlsx')
 
 # 贪婪策略生成初始解
 def schedule_courses(courses_task, classes, teachers, schedule_all, col="1"):
