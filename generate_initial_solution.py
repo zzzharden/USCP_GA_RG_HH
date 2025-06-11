@@ -64,7 +64,7 @@ def schedule_courses(courses_task, classes, teachers, schedule_all, col="1"):
                 probability = random.random()
                 used_classroom_timeslots = [(ts, ci) for ts, ci in available_timeslots if
                                             any(schedule_all[ci])]
-                if probability < 0.95 and used_classroom_timeslots:
+                if probability < 0.98 and used_classroom_timeslots:
                     start_timeslot, classroom_index = random.choice(used_classroom_timeslots)
                 else:
                     start_timeslot, classroom_index = random.choice(available_timeslots)

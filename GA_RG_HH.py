@@ -448,7 +448,7 @@ def A_random(res, cr, tr, schedule_all):
 
         # 根据使用次数排序，选择最少的5个
         sorted_items = sorted(count_dict.items(), key=lambda x: x[1])
-        used_classroom_indices = [item[0] for item in sorted_items[:5]]
+        used_classroom_indices = [item[0] for item in sorted_items[:len(sorted_items)//2]]
 
         r1 = random.choice(used_classroom_indices)
         T1 = []
